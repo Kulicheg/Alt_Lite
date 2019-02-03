@@ -46,7 +46,7 @@ long int FirstTime, SecondTime, oldAltitude, newAltitude, SecondTimeM, FirstTime
 struct SystemLog
 {
   unsigned long timestamp;
-  char message[20];
+  char message[15];
 };
 
 struct SystemLog capitansLog;
@@ -161,7 +161,7 @@ void loop()
   toLog ("Finish Logging");
 
   EEPROM.put(950, Maxspeed);
-  toLog ("Max Speed=" + String (Maxspeed));
+  toLog ("MaxSpeed=" + String (Maxspeed));
 
   oled.clear();
   while (1);
@@ -203,7 +203,7 @@ void fallingSense ()
     if ((oldAltitude - newAltitude) > 2)
     {
       Apogee = oldAltitude;
-      toLog ("Falling detected " + String(Apogee));
+      toLog ("Falling! " + String(Apogee));
       EEPROM.put(945, Apogee);
       Fallen = true;
     }
@@ -213,16 +213,10 @@ void fallingSense ()
     FirstTime = millis();
     if (FirstTime - SecondTime >= 1000)
     {
-
-
       SecondTime = millis();
       oldAltitude = newAltitude;
       newAltitude = Altitude;
-
-
     }
-
-
   }
 
 }
@@ -233,9 +227,9 @@ void toLog (String message)
   if (EEPOS < 936)
   {
     int eventSize = sizeof (capitansLog);
-    char event [20];
-    message.toCharArray (event, 20);
-    memcpy(capitansLog.message, event, 20);
+    char event [15];
+    message.toCharArray (event, 15);
+    memcpy(capitansLog.message, event, 15);
     capitansLog.timestamp = millis();
     EEPROM.put(EEPOS, capitansLog);
     EEPOS = EEPOS + eventSize;
@@ -248,7 +242,6 @@ void toLog (String message)
 
 float speedOmeter()
 {
-
   float FloatSpeed;
   Alt2  =  bmp.readAltitude(SEALEVELPRESSURE_HPA);
 
@@ -267,6 +260,9 @@ float speedOmeter()
       Maxspeed = Speed;
     }
   }
+
+  altLog();
+
   return Speed;
 
 }
@@ -294,7 +290,11 @@ void LOGonOSD()
   {
     EEPROM.get(msgCount, capitansLog);
     String str(capitansLog.message);
-    oled.println(capitansLog.timestamp / 1000);
+    oled.print(msgCount/eventSize);
+    oled.print(" : ");
+    oled.print(capitansLog.timestamp / 1000);
+    oled.println("   [A/S/MS]");
+    
     oled.println(str);
     delay(5000);
     oled.clear();
@@ -304,4 +304,10 @@ void LOGonOSD()
 
 
 
+}
+
+
+void altLog()
+{
+  if (Altitude > 10) toLog  (String (Altitude) + "/" + String (Speed) + "/" + String (Maxspeed));
 }
