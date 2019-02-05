@@ -31,16 +31,35 @@ int Speed;
 int Apogee;
 int EEPOS;
 int Maxspeed;
-
+int tenths;
+long int LogTime;
 float Alt1, Alt2;
-
+byte PackSize;
+int EEXPos;
 
 int msgCount;
 boolean Fallen;
+boolean latch;
 byte NumRec;
 
 long int Start, Start2, Finish, Finish2, routineTime;
 long int FirstTime, SecondTime, oldAltitude, newAltitude, SecondTimeM, FirstTimeM;
+
+
+
+struct telemetrystruct
+{
+  int tenths;
+  int Altitude;
+  int Speed;
+  int Maxspeed;
+
+};
+
+struct telemetrystruct telemetry;
+
+
+
 
 
 struct SystemLog
@@ -60,10 +79,11 @@ void setup()
 
   Fallen = false;
   Apogee = 0;
-
+  EEXPos = 0;
+  PackSize = sizeof (telemetry);
+  NumRec = 0;
 
   pinMode(BUTTON, INPUT_PULLUP); // BUTTON PIN
-
 
   Serial.begin(115200);
 
@@ -102,7 +122,6 @@ void loop()
     LOGonOSD();
   }
 
-
   oled.clear();
   oled.set1X();
   oled.print("Alt = ");
@@ -120,22 +139,19 @@ void loop()
   while (digitalRead(BUTTON))
   {
   }
-
-
   oled.clear();
   oled.set2X();
   oled.println("POEKHALI!");
   delay (1000);
   oled.clear();
+
   ///////////////////////////////////////////////////////////////////////////////////////////////////
   //                                     FIRST STAGE                                               //
   ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-  toLog ("Start Logging");
-
-  for (int q = 945; q < 952; q++)
+  for (int q = 945; q < 955; q++)
   {
-    EEPROM.write(q, 0);
+    EEPROM.update(q, 0);
   }
 
   for (int FSTage = 1; FSTage <= 100; FSTage++)
@@ -143,7 +159,6 @@ void loop()
     Start2 = millis();
 
     getdata();        // Получаем данные с датчиков в структуру
-    fallingSense ();  // Не падаем ли?
 
     // delay(5);
     Finish2 = millis();
@@ -153,161 +168,155 @@ void loop()
     oled.set1X();
     oled.println(Altitude);
     oled.println(Speed);
-
-
-
   }
 
-  toLog ("Finish Logging");
-
   EEPROM.put(950, Maxspeed);
-  toLog ("MaxSpeed=" + String (Maxspeed));
-
   oled.clear();
   while (1);
 }
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
 void getdata()
 {
 
-  Pressure = bmp.readPressure();
-
-  Altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
-
-  Temperature = bmp.readTemperature();
-
+  Pressure    = bmp.readPressure();
+  Altitude    = bmp.readAltitude(SEALEVELPRESSURE_HPA);
   Speed       = speedOmeter();
-
-
-
-
-  ///////////////////////////////////////////////////////////////////////////////////////////////////
 }
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-
-void fallingSense ()
+float speedOmeter()
 {
+
+  if (Altitude >= 0)
+  {
+    if (!latch)
+    {
+      LogTime = millis();
+      latch = true;
+
+      telemetry.tenths = (millis() - LogTime) / 100;
+      telemetry.Altitude = Altitude;
+      telemetry.Speed = Speed;
+      telemetry.Maxspeed = Maxspeed;
+      Writelog();
+    }
+  }
 
   if (!Fallen) {
 
     if ((oldAltitude - newAltitude) > 2)
     {
       Apogee = oldAltitude;
-      toLog ("Falling! " + String(Apogee));
       EEPROM.put(945, Apogee);
       Fallen = true;
     }
-
-
-
-    FirstTime = millis();
-    if (FirstTime - SecondTime >= 1000)
-    {
-      SecondTime = millis();
-      oldAltitude = newAltitude;
-      newAltitude = Altitude;
-    }
   }
 
-}
-
-void toLog (String message)
-{
-
-  if (EEPOS < 936)
-  {
-    int eventSize = sizeof (capitansLog);
-    char event [15];
-    message.toCharArray (event, 15);
-    memcpy(capitansLog.message, event, 15);
-    capitansLog.timestamp = millis();
-    EEPROM.put(EEPOS, capitansLog);
-    EEPOS = EEPOS + eventSize;
-    NumRec = EEPOS / eventSize;
-    EEPROM.write(947, NumRec);
-
-  }
-}
-
-
-float speedOmeter()
-{
   float FloatSpeed;
   Alt2  =  bmp.readAltitude(SEALEVELPRESSURE_HPA);
+
 
   FirstTimeM = millis();
 
   if (FirstTimeM - SecondTimeM >= 500)
   {
+    oldAltitude = newAltitude;
+    newAltitude = Altitude;
 
     FloatSpeed = (Alt2 - Alt1) / (FirstTimeM - SecondTimeM) * 100000;
-
     Speed = FloatSpeed / 100;
     Alt1 = Alt2;
-    SecondTimeM = millis();
 
-    if (Speed > Maxspeed) {
-      Maxspeed = Speed;
+
+    if (Speed > Maxspeed) Maxspeed = Speed;
+
+
+    if (Altitude >= 0)
+    {
+      telemetry.tenths = (millis() - LogTime) / 100;
+      telemetry.Altitude = Altitude;
+      telemetry.Speed = Speed;
+      telemetry.Maxspeed = Maxspeed;
+
+      Writelog();
+      EEPROM.write(947, NumRec);
+      SecondTimeM = millis();
     }
   }
-
-  altLog();
-
   return Speed;
-
 }
 
 
 
 void LOGonOSD()
 {
+
+  int TimeStamp;
+  EEXPos = 0;
   EEPROM.get (945, Apogee);
+  EEPROM.get (950, Maxspeed);
+  EEPROM.get(947, NumRec);
   oled.setFont(Callibri15);
   oled.clear();
   oled.set1X();
-  oled.print("Capitan's Log: ");
-  oled.print(EEPROM.read(947));
-  oled.println(" rec");
+  oled.print("NumRec: ");
+  oled.print(NumRec);
+  oled.println("recs");
   oled.print("Apogee = ");
   oled.println(Apogee);
   delay (5000);
 
-  int eventSize = sizeof (capitansLog);
-  NumRec = EEPROM.read(947);
-  oled.clear();
-  oled.set1X();
-  for (int msgCount = 0; msgCount < (eventSize * NumRec);  msgCount = msgCount + eventSize)
+  PackSize = sizeof (telemetry);
+  byte Packet[PackSize];
+
+  for (int Rec = 0; Rec < NumRec; Rec++)
   {
-    EEPROM.get(msgCount, capitansLog);
-    String str(capitansLog.message);
-    oled.print(msgCount/eventSize);
-    oled.print(" : ");
-    oled.print(capitansLog.timestamp / 1000);
-    oled.println("   [A/S/MS]");
-    
-    oled.println(str);
-    delay(5000);
+    for (int intern = 0; intern < PackSize; intern++)
+    {
+      Packet[intern] = EEPROM.read(EEXPos + intern);
+    }
+    memcpy(&telemetry, Packet, sizeof(telemetry));
+
+    Altitude      = telemetry.Altitude;
+    Speed         = telemetry.Speed;
+    TimeStamp     = telemetry.tenths;
+    Maxspeed      = telemetry.Maxspeed;
+
+    oled.setFont(Callibri15);
+    oled.set1X();
     oled.clear();
+
+    oled.print(Rec);
+    oled.print(" : ");
+    oled.print(TimeStamp);
+    oled.println("  [A/S/MS]");
+
+    oled.print(String (Altitude) + "/" + String (Speed) + "/" + String (Maxspeed));
+    delay(2000);
+    EEXPos = EEXPos + PackSize;
   }
-
-  delay(10300);
-
-
-
 }
 
 
-void altLog()
+void Writelog()
 {
-  if (Altitude > 10) toLog  (String (Altitude) + "/" + String (Speed) + "/" + String (Maxspeed));
+  byte bufwrite;
+
+  if (EEXPos < 931)
+  {
+    unsigned char * telemetry_bytes;
+
+    telemetry_bytes = (unsigned char *) &telemetry;
+
+    for (bufwrite = 0; bufwrite < PackSize; bufwrite++)
+    {
+      EEPROM.write(EEXPos + bufwrite, telemetry_bytes[bufwrite]);
+    }
+    EEXPos = EEXPos + PackSize;
+    NumRec++;
+    EEPROM.write(947, NumRec);
+  }
+
 }
