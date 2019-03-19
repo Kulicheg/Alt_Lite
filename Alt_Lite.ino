@@ -17,13 +17,13 @@
 #define I2C_ADDRESS 0x3C
 #define RST_PIN -1
 
-
 SSD1306AsciiAvrI2c oled;
 Adafruit_BMP085 bmp;
 
-
 float SEALEVELPRESSURE_HPA;
 
+int Cycles;
+byte BUTTON = 2;
 int Altitude;
 long int Pressure;
 int Temperature;
@@ -71,7 +71,7 @@ struct SystemLog
 struct SystemLog capitansLog;
 
 
-byte BUTTON = 4;
+
 
 
 void setup()
@@ -82,6 +82,7 @@ void setup()
   EEXPos = 0;
   PackSize = sizeof (telemetry);
   NumRec = 0;
+  Cycles = 110;
 
   pinMode(BUTTON, INPUT_PULLUP); // BUTTON PIN
 
@@ -154,20 +155,19 @@ void loop()
     EEPROM.update(q, 0);
   }
 
-  for (int FSTage = 1; FSTage <= 100; FSTage++)
+  for (int FSTage = 0; FSTage < Cycles; FSTage++)
   {
     Start2 = millis();
 
     getdata();        // Получаем данные с датчиков в структуру
 
-    // delay(5);
+    delay(147);
     Finish2 = millis();
     routineTime = Finish2 - Start2;
 
     oled.clear();
     oled.set1X();
-    oled.println(Altitude);
-    oled.println(Speed);
+    oled.println(routineTime);
   }
 
   EEPROM.put(950, Maxspeed);
@@ -189,7 +189,7 @@ void getdata()
 float speedOmeter()
 {
 
-  if (Altitude >= 0)
+  if (Altitude > 3)
   {
     if (!latch)
     {
@@ -233,7 +233,7 @@ float speedOmeter()
     if (Speed > Maxspeed) Maxspeed = Speed;
 
 
-    if (Altitude >= 0)
+    if (Altitude > 3)
     {
       telemetry.tenths = (millis() - LogTime) / 100;
       telemetry.Altitude = Altitude;
@@ -304,7 +304,7 @@ void Writelog()
 {
   byte bufwrite;
 
-  if (EEXPos < 931)
+  if (EEXPos < 936)
   {
     unsigned char * telemetry_bytes;
 
