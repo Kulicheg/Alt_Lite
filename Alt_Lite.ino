@@ -82,7 +82,7 @@ void setup()
   EEXPos = 0;
   PackSize = sizeof (telemetry);
   NumRec = 0;
-  Cycles = 110;
+  Cycles = 1200;
 
   pinMode(BUTTON, INPUT_PULLUP); // BUTTON PIN
 
@@ -155,23 +155,32 @@ void loop()
     EEPROM.update(q, 0);
   }
 
+  oled.set1X();
+
+
   for (int FSTage = 0; FSTage < Cycles; FSTage++)
   {
     Start2 = millis();
 
-    getdata();        // Получаем данные с датчиков в структуру
+    if (Altitude > 2) {
+      getdata();
+    }
 
-    delay(147);
+    delay(148);
     Finish2 = millis();
     routineTime = Finish2 - Start2;
 
     oled.clear();
-    oled.set1X();
-    oled.println(routineTime);
+    oled.println(FSTage);
+
   }
 
   EEPROM.put(950, Maxspeed);
   oled.clear();
+
+
+
+
   while (1);
 }
 
@@ -189,24 +198,23 @@ void getdata()
 float speedOmeter()
 {
 
-  if (Altitude > 3)
-  {
-    if (!latch)
-    {
-      LogTime = millis();
-      latch = true;
 
-      telemetry.tenths = (millis() - LogTime) / 100;
-      telemetry.Altitude = Altitude;
-      telemetry.Speed = Speed;
-      telemetry.Maxspeed = Maxspeed;
-      Writelog();
-    }
+  if (!latch)
+  {
+    LogTime = millis();
+    latch = true;
+
+    telemetry.tenths = (millis() - LogTime) / 100;
+    telemetry.Altitude = Altitude;
+    telemetry.Speed = Speed;
+    telemetry.Maxspeed = Maxspeed;
+    Writelog();
   }
+
 
   if (!Fallen) {
 
-    if ((oldAltitude - newAltitude) > 2)
+    if ((oldAltitude - newAltitude) > 1)
     {
       Apogee = oldAltitude;
       EEPROM.put(945, Apogee);
@@ -220,7 +228,7 @@ float speedOmeter()
 
   FirstTimeM = millis();
 
-  if (FirstTimeM - SecondTimeM >= 500)
+  if (FirstTimeM - SecondTimeM > 500)
   {
     oldAltitude = newAltitude;
     newAltitude = Altitude;
@@ -233,17 +241,16 @@ float speedOmeter()
     if (Speed > Maxspeed) Maxspeed = Speed;
 
 
-    if (Altitude > 3)
-    {
-      telemetry.tenths = (millis() - LogTime) / 100;
-      telemetry.Altitude = Altitude;
-      telemetry.Speed = Speed;
-      telemetry.Maxspeed = Maxspeed;
 
-      Writelog();
-      EEPROM.write(947, NumRec);
-      SecondTimeM = millis();
-    }
+    telemetry.tenths = (millis() - LogTime) / 100;
+    telemetry.Altitude = Altitude;
+    telemetry.Speed = Speed;
+    telemetry.Maxspeed = Maxspeed;
+
+    Writelog();
+    EEPROM.write(947, NumRec);
+    SecondTimeM = millis();
+
   }
   return Speed;
 }
@@ -291,6 +298,7 @@ void LOGonOSD()
     oled.print(Rec);
     oled.print(" : ");
     oled.print(TimeStamp);
+    oled.print(" ths");
     oled.println("  [A/S/MS]");
 
     oled.print(String (Altitude) + "/" + String (Speed) + "/" + String (Maxspeed));
