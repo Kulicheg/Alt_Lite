@@ -1,16 +1,17 @@
-// 950 - 951 - Max Speed
-// 947 - 947 - NumRec
+// 000 - 935 - Data
 // 945 - 946 - Apogee
+// 947 - 947 - NumRec
+// 950 - 951 - Max Speed
+
+
 
 #include <Wire.h>
 #include <Adafruit_BMP085.h>
-#include "SSD1306Ascii.h"
-#include "SSD1306AsciiAvrI2c.h"
-
+#include <SSD1306Ascii.h>
+#include <SSD1306AsciiAvrI2c.h>
+#include <GyverTimer.h>
 #include <Wire.h>
 #include <EEPROM.h>
-
-
 
 
 #define OLED_I2C_ADDRESS 0x3C
@@ -22,7 +23,7 @@ Adafruit_BMP085 bmp;
 
 float SEALEVELPRESSURE_HPA;
 
-int Cycles;
+int Cycles, Tick;
 byte BUTTON = 2;
 int Altitude;
 long int Pressure;
@@ -52,42 +53,26 @@ struct telemetrystruct
   int tenths;
   int Altitude;
   int Speed;
-  int Maxspeed;
-
 };
 
 struct telemetrystruct telemetry;
 
-
-
-
-
-struct SystemLog
-{
-  unsigned long timestamp;
-  char message[15];
-};
-
-struct SystemLog capitansLog;
-
-
-
-
-
 void setup()
 {
-
   Fallen = false;
   Apogee = 0;
   EEXPos = 0;
   PackSize = sizeof (telemetry);
   NumRec = 0;
   Cycles = 1200;
+  Tick = 148;
 
   pinMode(BUTTON, INPUT_PULLUP); // BUTTON PIN
 
   Serial.begin(115200);
 
+  Serial.println("Start");
+  Serial.println("PackSize = " + String(PackSize));
 
   Wire.begin();
   oled.begin(&Adafruit128x32, OLED_I2C_ADDRESS);
@@ -111,6 +96,7 @@ void setup()
   oled.setFont(Callibri15);
 
   SEALEVELPRESSURE_HPA = bmp.readPressure();
+  Altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
 }
 
 //------------------------------------------------------------------------------
@@ -139,7 +125,10 @@ void loop()
 
   while (digitalRead(BUTTON))
   {
+
+
   }
+
   oled.clear();
   oled.set2X();
   oled.println("POEKHALI!");
@@ -157,16 +146,16 @@ void loop()
 
   oled.set1X();
 
-
   for (int FSTage = 0; FSTage < Cycles; FSTage++)
   {
     Start2 = millis();
 
-    if (Altitude > 2) {
+    if (Altitude > 2)
+    {
       getdata();
     }
 
-    delay(148);
+    delay(Tick);
     Finish2 = millis();
     routineTime = Finish2 - Start2;
 
@@ -177,9 +166,6 @@ void loop()
 
   EEPROM.put(950, Maxspeed);
   oled.clear();
-
-
-
 
   while (1);
 }
@@ -197,8 +183,6 @@ void getdata()
 
 float speedOmeter()
 {
-
-
   if (!latch)
   {
     LogTime = millis();
@@ -207,14 +191,13 @@ float speedOmeter()
     telemetry.tenths = (millis() - LogTime) / 100;
     telemetry.Altitude = Altitude;
     telemetry.Speed = Speed;
-    telemetry.Maxspeed = Maxspeed;
     Writelog();
   }
 
 
   if (!Fallen) {
 
-    if ((oldAltitude - newAltitude) > 1)
+    if ((oldAltitude - newAltitude) > 2)
     {
       Apogee = oldAltitude;
       EEPROM.put(945, Apogee);
@@ -225,10 +208,9 @@ float speedOmeter()
   float FloatSpeed;
   Alt2  =  bmp.readAltitude(SEALEVELPRESSURE_HPA);
 
-
   FirstTimeM = millis();
 
-  if (FirstTimeM - SecondTimeM > 500)
+  if (FirstTimeM - SecondTimeM > 100)
   {
     oldAltitude = newAltitude;
     newAltitude = Altitude;
@@ -240,12 +222,9 @@ float speedOmeter()
 
     if (Speed > Maxspeed) Maxspeed = Speed;
 
-
-
     telemetry.tenths = (millis() - LogTime) / 100;
     telemetry.Altitude = Altitude;
     telemetry.Speed = Speed;
-    telemetry.Maxspeed = Maxspeed;
 
     Writelog();
     EEPROM.write(947, NumRec);
@@ -265,18 +244,28 @@ void LOGonOSD()
   EEPROM.get (945, Apogee);
   EEPROM.get (950, Maxspeed);
   EEPROM.get(947, NumRec);
+
   oled.setFont(Callibri15);
   oled.clear();
   oled.set1X();
+
   oled.print("NumRec: ");
   oled.print(NumRec);
   oled.println("recs");
-  oled.print("Apogee = ");
-  oled.println(Apogee);
-  delay (5000);
+  delay (2000);
 
+  oled.clear();
   PackSize = sizeof (telemetry);
   byte Packet[PackSize];
+  oled.println("Apogee = " + String (Apogee));
+  oled.println("Maxspeed = " + String (Maxspeed));
+  
+  
+  Serial.println("NumRec = " + String (NumRec));
+  Serial.println("Apogee = " + String (Apogee));
+  Serial.println("Maxspeed = " + String (Maxspeed));
+  Serial.println(" ");
+  Serial.println("TimeStamp \t Altitude \t Speed");
 
   for (int Rec = 0; Rec < NumRec; Rec++)
   {
@@ -289,22 +278,12 @@ void LOGonOSD()
     Altitude      = telemetry.Altitude;
     Speed         = telemetry.Speed;
     TimeStamp     = telemetry.tenths;
-    Maxspeed      = telemetry.Maxspeed;
 
-    oled.setFont(Callibri15);
-    oled.set1X();
-    oled.clear();
+    Serial.println(TimeStamp + "\t" + String (Altitude) + "\t" + String (Speed));
 
-    oled.print(Rec);
-    oled.print(" : ");
-    oled.print(TimeStamp);
-    oled.print(" ths");
-    oled.println("  [A/S/MS]");
-
-    oled.print(String (Altitude) + "/" + String (Speed) + "/" + String (Maxspeed));
-    delay(2000);
     EEXPos = EEXPos + PackSize;
   }
+  Serial.println(" ");
 }
 
 
