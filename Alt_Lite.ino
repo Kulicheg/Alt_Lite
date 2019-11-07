@@ -23,6 +23,7 @@ Adafruit_BMP085 bmp;
 
 float SEALEVELPRESSURE_HPA;
 
+long int TimeStamp;
 int Cycles, Tick;
 byte BUTTON = 2;
 int Altitude;
@@ -32,7 +33,7 @@ int Speed;
 int Apogee;
 int EEPOS;
 int Maxspeed;
-int tenths;
+unsigned int tenths;
 long int LogTime;
 float Alt1, Alt2;
 byte PackSize;
@@ -50,7 +51,7 @@ long int FirstTime, SecondTime, oldAltitude, newAltitude, SecondTimeM, FirstTime
 
 struct telemetrystruct
 {
-  int tenths;
+  unsigned int tenths;
   int Altitude;
   int Speed;
 };
@@ -64,7 +65,7 @@ void setup()
   EEXPos = 0;
   PackSize = sizeof (telemetry);
   NumRec = 0;
-  Cycles = 1200;
+  Cycles = 150;
   Tick = 148;
 
   pinMode(BUTTON, INPUT_PULLUP); // BUTTON PIN
@@ -104,11 +105,6 @@ void setup()
 void loop()
 {
 
-  if (!digitalRead(BUTTON))
-  {
-    LOGonOSD();
-  }
-
   oled.clear();
   oled.set1X();
   oled.print("Alt = ");
@@ -126,7 +122,7 @@ void loop()
   while (digitalRead(BUTTON))
   {
 
-
+    LOGonOSD();
   }
 
   oled.clear();
@@ -139,6 +135,7 @@ void loop()
   //                                     FIRST STAGE                                               //
   ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+
   for (int q = 945; q < 955; q++)
   {
     EEPROM.update(q, 0);
@@ -146,14 +143,22 @@ void loop()
 
   oled.set1X();
 
+  LogTime = millis();
+
   for (int FSTage = 0; FSTage < Cycles; FSTage++)
   {
+
+    //    while (Altitude < 3)
+    //    {
+    //      Altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
+    //      oled.clear();
+    //LogTime = millis();
+    //      oled.println(Altitude);
+    //    }
+
     Start2 = millis();
 
-    if (Altitude > 2)
-    {
-      getdata();
-    }
+    getdata();
 
     delay(Tick);
     Finish2 = millis();
@@ -177,24 +182,13 @@ void getdata()
   Pressure    = bmp.readPressure();
   Altitude    = bmp.readAltitude(SEALEVELPRESSURE_HPA);
   Speed       = speedOmeter();
+  TimeStamp = (millis() - LogTime);
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 float speedOmeter()
 {
-  if (!latch)
-  {
-    LogTime = millis();
-    latch = true;
-
-    telemetry.tenths = (millis() - LogTime) / 100;
-    telemetry.Altitude = Altitude;
-    telemetry.Speed = Speed;
-    Writelog();
-  }
-
-
   if (!Fallen) {
 
     if ((oldAltitude - newAltitude) > 2)
@@ -222,10 +216,8 @@ float speedOmeter()
 
     if (Speed > Maxspeed) Maxspeed = Speed;
 
-    telemetry.tenths = (millis() - LogTime) / 100;
     telemetry.Altitude = Altitude;
     telemetry.Speed = Speed;
-
     Writelog();
     EEPROM.write(947, NumRec);
     SecondTimeM = millis();
@@ -238,8 +230,6 @@ float speedOmeter()
 
 void LOGonOSD()
 {
-
-  int TimeStamp;
   EEXPos = 0;
   EEPROM.get (945, Apogee);
   EEPROM.get (950, Maxspeed);
@@ -259,13 +249,13 @@ void LOGonOSD()
   byte Packet[PackSize];
   oled.println("Apogee = " + String (Apogee));
   oled.println("Maxspeed = " + String (Maxspeed));
-  
-  
+  delay (2000);
+
   Serial.println("NumRec = " + String (NumRec));
   Serial.println("Apogee = " + String (Apogee));
   Serial.println("Maxspeed = " + String (Maxspeed));
   Serial.println(" ");
-  Serial.println("TimeStamp \t Altitude \t Speed");
+  Serial.println("Time \t Altitude \t Speed");
 
   for (int Rec = 0; Rec < NumRec; Rec++)
   {
@@ -278,8 +268,7 @@ void LOGonOSD()
     Altitude      = telemetry.Altitude;
     Speed         = telemetry.Speed;
     TimeStamp     = telemetry.tenths;
-
-    Serial.println(TimeStamp + "\t" + String (Altitude) + "\t" + String (Speed));
+    Serial.println(String (TimeStamp) + "\t" + String (Altitude) + "\t" + String (Speed));
 
     EEXPos = EEXPos + PackSize;
   }
@@ -291,7 +280,7 @@ void Writelog()
 {
   byte bufwrite;
 
-  if (EEXPos < 936)
+  if (EEXPos < 901)
   {
     unsigned char * telemetry_bytes;
 
